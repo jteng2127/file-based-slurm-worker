@@ -1,13 +1,60 @@
-# slurm-task-worker
+# file-based-slurm-worker
 
 A filesystem-based task queue for running many independent jobs across parallel Slurm workers.
 
-Tasks are shell scripts placed in a `1_pending/` directory. Workers race to pick them up, move
-them through a set of numbered state directories, and log their output.
+## Why do I need this?
 
----
+- **Simple pipeline**: Your task queue is just a directory. Move a script into `1_pending/`, launch some workers, watch tasks go through `2_running/`, `3_done/` or `4_failed/`, and log to `5_task_logs/`. No daemons, no databases.
+- **Simple control**: Control your tasks and workers by moving or deleting files. No complex APIs or commands.
+- **Race-free parallelism**: Run as many workers as you want locally or on Slurm. No task ever runs twice.
+- **Automatic recovery**: If a worker is killed mid-task, the task will automatically retry on another worker.
+- **NCHC-Slurm-ready**: Auto-detects NCHC Slurm clusters (twcc, nano4, nano5) and sets the sbatch arguments for you. How many nodes? How many GPUs per worker? How many workers? That's all you need to provide.
+
+## Quick start
+
+### 1. Install
+
+```bash
+git clone https://github.com/jteng2127/file-based-slurm-worker.git
+cd file-based-slurm-worker
+bash install
+source ~/.zshrc   # or source ~/.bashrc
+```
+
+### 2. Generate example tasks
+
+```bash
+cd example/
+python gen.py
+# creates 10 demo scripts in example/0_gen/
+mkdir -p 1_pending/
+cp 0_gen/*.sh 1_pending/
+```
+
+### 3a. Run 2 workers locally
+
+Open two terminals, run the following command in each:
+
+```bash
+launch-worker .
+# processes all tasks in 1_pending/, move running tasks to 2_running/
+# move tasks to 3_done/ or 4_failed/ based on exit code
+# task logs go to 5_task_logs/
+# worker status files go to 7_worker_status/
+```
+
+### 3b. Run 2 workers on Slurm
+
+```bash
+cd ..
+launch-slurm-workers -n 2 example/
+# submits a Slurm job with 2 parallel workers
+# Slurm job and worker logs go to 6_job_logs/
+```
 
 ## How it works
+
+Tasks are shell scripts placed in a `1_pending/` directory. Workers race to pick them up, move them through a set of numbered state directories, and log their output.
 
 ```
 task-dir/
@@ -16,72 +63,43 @@ task-dir/
   3_done/           completed tasks (exit code 0)
   4_failed/         failed tasks (non-zero exit code)
   5_task_logs/      stdout/stderr for each task run
-  6_job_logs/       Slurm job logs (created by launch-slurm-workers)
+  6_job_logs/       Slurm job logs
   7_worker_status/  one file per active worker with current status
 ```
 
-Multiple workers poll `1_pending/` concurrently. A task file is claimed by `mv`-ing it into
-`2_running/`, which is atomic on most shared filesystems — so each task runs on exactly one
-worker, no matter how many workers are active.
+Multiple workers poll `1_pending/` concurrently. A task file is claimed by `mv` it into `2_running/`, which is atomic on most filesystems, so each task runs on exactly one worker.
 
-If a worker is terminated while running a task, the task file is moved back to `1_pending/`
-automatically (via a signal trap), so it will be retried by any remaining worker.
+If a worker is terminated (recieved SIGTERM or SIGINT) while running a task, the task file is moved back to `1_pending/` automatically, so it will be retried by any remaining worker.
 
-A worker also monitors its own status file in `7_worker_status/`. Removing that file causes the
-worker to shut itself down gracefully — a convenient way to stop individual workers.
+## How to use
 
----
+### 1. Prepare task scripts
 
-## Task script format
+- Create a task directory, e.g. `task-dir/`
+- `cd task-dir`, generate scripts using a generator script, e.g. [example](example/gen.py), outputs to `0_gen/`
+- Scripts must be `.sh` files; the worker sets `WORKER_JOB_ID` (`<worker_id>.<job_count>`) before each run
+- Review generated scripts, then move them to `1_pending/`
 
-Tasks are plain shell scripts with a `.sh` extension. The worker sets one extra environment
-variable before executing each task:
+### 2. Launch workers
 
-- `WORKER_JOB_ID` — unique ID for the specific task run, format `<worker_id>.<job_count>`
+Run locally with `launch-worker` or on Slurm with `launch-slurm-workers`. See [Commands](#commands) for full options.
 
-Example task script:
+For Slurm, each Slurm task maps to one worker, so the total number of workers is `-N` (nodes) × `-n` (tasks per node), and each worker gets `-g` GPUs.
 
 ```bash
-#!/bin/bash
-echo "Running on $(hostname), job $WORKER_JOB_ID"
-python train.py --config config.yaml
+launch-slurm-workers -N 2 -n 4 -g 1 task-dir/
+# submits a job with 8 workers (2 nodes × 4 tasks), each using 1 GPU
 ```
 
----
+### 3. Monitor and control
 
-## Install
-
-```bash
-git clone https://github.com/your-username/slurm-task-worker.git
-cd slurm-task-worker
-bash install
-source ~/.zshrc   # or source ~/.bashrc
-```
-
-The install script appends `bin/` to `PATH` in `~/.zshrc` and `~/.bashrc`.
-
----
+- Watch task states via the directory layout (`2_running/`, `3_done/`, `4_failed/`, etc.)
+- Stop all workers gracefully for a job: `scancel <JOB_ID>`
+- Stop a specific worker gracefully: `rm task-dir/7_worker_status/<WORKER_ID>`
+- Stop a task by removing it from `2_running/`
+- Move failed tasks back to pending: `launch-slurm-workers --reset-failed TASK_DIR` or manually `mv task-dir/4_failed/*.sh task-dir/1_pending/`
 
 ## Commands
-
-### `launch-worker TASK_DIR [MAX_IDLE]`
-
-Start a single worker process that consumes tasks from `TASK_DIR/1_pending/`.
-
-```
-Arguments:
-  TASK_DIR      Directory containing 1_pending/
-  MAX_IDLE      Seconds to wait with no tasks before exiting (default: 60)
-```
-
-The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM`
-gracefully: the running task's process tree is killed, and the task file is returned to
-`1_pending/`.
-
-You can run multiple workers pointing at the same `TASK_DIR` at the same time — from multiple
-terminals, SSH sessions, or Slurm array tasks.
-
----
 
 ### `launch-slurm-workers [options] TASK_DIR`
 
@@ -94,11 +112,7 @@ Options:
   -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N         GPUs per task/worker (default: 1)
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
-  -p, --partition PARTITION    Slurm partition (default: platform-dependent)
-  -t, --time TIME              Slurm time limit (overrides platform default)
-  --mem-per-gpu MEM            Memory per GPU in GB (overrides platform default)
-  --cpus-per-task N            CPUs per task (overrides platform default)
-  --sb-KEY VALUE               Pass --KEY=VALUE directly to sbatch
+  --sb-KEY VALUE               Pass --KEY=VALUE directly to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
   --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting
   --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting
@@ -112,36 +126,24 @@ Platform presets (auto-detected from hostname):
 | twcc            | `un-ln*`         | gp4d      | 4-00:00:00 | 90 GB   | 4        |
 | nano5           | `cbi-lgn*`       | normal    | 2-00:00:00 | 200 GB  | 12×GPU   |
 | nano4           | `25a-lgn*`       | normal    | 1-00:00:00 | 200 GB  | 13×GPU   |
-| nano4 (dev)     | `25a-lgn*`       | dev       | 2:00:00    | 200 GB  | 13×GPU   |
+| nano4 (dev)     | `25a-lgn*`       | dev       | 02:00:00   | 200 GB  | 13×GPU   |
 | (other/generic) | —                | normal    | 00:30:00   | 16 GB   | 4        |
 
 Any platform value can be overridden with `-t`, `--mem-per-gpu`, or `--cpus-per-task`.
 
 The script automatically cancels the Slurm job once all workers finish or go idle.
 
----
+### `launch-worker TASK_DIR [MAX_IDLE]`
 
-## Example
+Start a single worker process that consumes tasks from `TASK_DIR/1_pending/`.
 
-```bash
-cd example/
-
-# Generate 10 demo task scripts into 1_pending/
-python gen.py
-
-# Option A: run locally with one worker
-launch-worker .
-
-# Option B: submit to Slurm (NCHC twcc, 2 workers on 1 node)
-cd ..
-launch-slurm-workers -n 2 example/
+```
+Arguments:
+  TASK_DIR      Directory containing 1_pending/
+  MAX_IDLE      Seconds to wait with no tasks before exiting (default: 60)
 ```
 
----
+The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM` gracefully: the running task's process tree is killed, and the task file is returned to `1_pending/`.
 
-## Controlling workers
+You can run multiple workers pointing at the same `TASK_DIR` at the same time — from multiple terminals, SSH sessions, etc.
 
-- Kill all workers for a job: `scancel <JOB_ID>`
-- Stop a specific worker gracefully: `rm task-dir/7_worker_status/<WORKER_ID>`
-- Move failed tasks back to pending: `launch-slurm-workers --reset-failed TASK_DIR` (or manually
-  `mv task-dir/4_failed/*.sh task-dir/1_pending/`)
