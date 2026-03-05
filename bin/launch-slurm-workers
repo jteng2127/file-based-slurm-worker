@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 
 # ========== Shell Options ==========
 set -eu
@@ -13,10 +13,7 @@ TASK_DIR=""
 YES=0
 RESET_FAILED=0
 CLEAN_LOGS=0
-PARTITION=""
-TIME_OVERRIDE=""
-MEM_PER_GPU_OVERRIDE=""
-CPU_PER_TASK_OVERRIDE=""
+
 SBATCH_EXTRA_ARGS=()
 
 usage() {
@@ -32,11 +29,7 @@ Options:
   -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N         GPUs per task/worker (default: 1)
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
-  -p, --partition PARTITION    Slurm partition (default: platform-dependent)
-  -t, --time TIME              Slurm time limit (default: platform-dependent, fallback: 00:30:00)
-  --mem-per-gpu MEM            Memory per GPU in GB (default: platform-dependent, fallback: 16)
-  --cpus-per-task N            CPUs per task (default: platform-dependent, fallback: 4)
-  --sb-KEY VALUE               Pass --KEY=VALUE to sbatch
+  --sb-KEY VALUE               Pass --KEY=VALUE to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
   --reset-failed               Move 4_failed/ tasks back to 1_pending/ before start
   --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before start
@@ -46,7 +39,7 @@ Platform + partition combos (TIME/MEM/CPU auto-set per combo):
   twcc  (un-ln)  + gp4d   → 4-00:00:00,  90G/GPU,  4 CPU/task  [default]
   nano5 (cbi-lgn)+ normal → 2-00:00:00, 200G/GPU, 12 CPU/GPU   [default]
   nano4 (25a-lgn)+ normal → 1-00:00:00, 200G/GPU, 13 CPU/GPU   [default]
-  nano4 (25a-lgn)+ dev    → 2:00:00,    200G/GPU, 13 CPU/GPU
+  nano4 (25a-lgn)+ dev    → 02:00:00,    200G/GPU, 13 CPU/GPU
   (other)                 → 00:30:00,    16G/GPU,  4 CPU/task   [fallback]
 
 Log directories (inside TASK_DIR):
@@ -64,10 +57,6 @@ while [[ $# -gt 0 ]]; do
         -n|--ntasks-per-node) NTASKS_PER_NODE="$2";    shift 2 ;;
         -g|--gpu-per-task)   GPU_PER_TASK="$2";        shift 2 ;;
         -i|--max-idle)       MAX_IDLE="$2";             shift 2 ;;
-        -p|--partition)      PARTITION="$2";            shift 2 ;;
-        -t|--time)           TIME_OVERRIDE="$2";        shift 2 ;;
-        --mem-per-gpu)       MEM_PER_GPU_OVERRIDE="$2"; shift 2 ;;
-        --cpus-per-task)     CPU_PER_TASK_OVERRIDE="$2"; shift 2 ;;
         --sb-*)              SBATCH_EXTRA_ARGS+=("--${1#--sb-}=$2"); shift 2 ;;
         -y|--yes)            YES=1;                     shift ;;
         --reset-failed)      RESET_FAILED=1;            shift ;;
@@ -101,8 +90,7 @@ else
     DEFAULT_PARTITION=normal
 fi
 
-# Apply partition override or default
-[ -z "$PARTITION" ] && PARTITION="$DEFAULT_PARTITION"
+PARTITION="$DEFAULT_PARTITION"
 
 # ========== Resources & Defaults (platform + partition) ==========
 if [ "$PLATFORM" = "twcc" ] && [ "$PARTITION" = "gp4d" ]; then
@@ -127,37 +115,11 @@ else
     CPU_PER_TASK=4
 fi
 
-# Apply user overrides for time/mem/cpu
-[ -n "$TIME_OVERRIDE" ]         && TIME="$TIME_OVERRIDE"
-[ -n "$MEM_PER_GPU_OVERRIDE" ]  && MEM_PER_GPU="$MEM_PER_GPU_OVERRIDE"
-[ -n "$CPU_PER_TASK_OVERRIDE" ] && CPU_PER_TASK="$CPU_PER_TASK_OVERRIDE"
 
 # ========== Derived Values ==========
 TOTAL_MEM=$((NTASKS_PER_NODE * GPU_PER_TASK * MEM_PER_GPU))
 GPUS_PER_NODE=$((NTASKS_PER_NODE * GPU_PER_TASK))
 
-# ========== Summary ==========
-echo "Platform:        ${PLATFORM}"
-echo "Partition:       ${PARTITION}"
-echo "Account:         ${ACCOUNT:-<not set>}"
-echo "Nodes:           ${NODES}"
-echo "Tasks per node:  ${NTASKS_PER_NODE}"
-echo "GPU per task:    ${GPU_PER_TASK}"
-echo "CPU per task:    ${CPU_PER_TASK}"
-echo "Mem per node:    ${TOTAL_MEM}G"
-echo "Time:            ${TIME}"
-echo "Task dir:        ${TASK_DIR}"
-echo "Max idle:        ${MAX_IDLE}s"
-echo "Reset failed:    $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
-echo "Clean logs:      $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
-echo ""
-
-if [ "$YES" -ne 1 ]; then
-    read -p "Submit? (Y/n) " -r
-    if [[ $REPLY =~ ^[Nn]$ ]]; then
-        exit 0
-    fi
-fi
 
 # ========== Submit ==========
 SBATCH_ARGS=(
@@ -211,6 +173,27 @@ for extra in "${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"}"; do
     SBATCH_ARGS=("${NEW_SBATCH_ARGS[@]}")
     SBATCH_ARGS+=("$extra")
 done
+
+# ========== Summary ==========
+echo "Task dir:        ${TASK_DIR}"
+echo "Platform:        ${PLATFORM}"
+echo "Account:         ${ACCOUNT:-<not set>}"
+echo "Nodes:           ${NODES}"
+echo "Tasks per node:  ${NTASKS_PER_NODE}"
+echo "GPU per task:    ${GPU_PER_TASK}"
+echo "Max idle:        ${MAX_IDLE}s"
+echo "Reset failed:    $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
+echo "Clean logs:      $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
+echo "Slurm args:"
+printf '  %s\n' "${SBATCH_ARGS[@]}"
+echo ""
+
+if [ "$YES" -ne 1 ]; then
+    read -p "Submit? (y/N) " -r
+    if [[ $REPLY != "y" && $REPLY != "Y" ]]; then
+        exit 0
+    fi
+fi
 
 export TASK_DIR MAX_IDLE GPU_PER_TASK
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
