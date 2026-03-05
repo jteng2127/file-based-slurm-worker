@@ -1,0 +1,218 @@
+#!/bin/bash
+
+# ========== Shell Options ==========
+set -eu
+
+# ========== Defaults ==========
+ACCOUNT=""
+NODES=1
+NTASKS_PER_NODE=1
+GPU_PER_TASK=1
+MAX_IDLE=60
+TASK_DIR=""
+YES=0
+RESET_FAILED=0
+CLEAN_LOGS=0
+PARTITION=""
+TIME_OVERRIDE=""
+MEM_PER_GPU_OVERRIDE=""
+CPU_PER_TASK_OVERRIDE=""
+SBATCH_EXTRA_ARGS=()
+
+usage() {
+    cat <<EOF
+Usage: $(basename "$0") [options] TASK_DIR
+
+Positional:
+  TASK_DIR                     Directory containing 1_pending/ directory with task scripts in .sh format
+
+Options:
+  -a, --account ACCOUNT        Slurm account
+  -N, --nodes N                Number of nodes (default: 1)
+  -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
+  -g, --gpu-per-task N         GPUs per task/worker (default: 1)
+  -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
+  -p, --partition PARTITION    Slurm partition (default: platform-dependent)
+  -t, --time TIME              Slurm time limit (default: platform-dependent, fallback: 00:30:00)
+  --mem-per-gpu MEM            Memory per GPU in GB (default: platform-dependent, fallback: 16)
+  --cpus-per-task N            CPUs per task (default: platform-dependent, fallback: 4)
+  --sb-KEY VALUE               Pass --KEY=VALUE to sbatch
+  -y, --yes                    Skip confirmation prompt
+  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before start
+  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before start
+  -h, --help                   Show this help message
+
+Platform + partition combos (TIME/MEM/CPU auto-set per combo):
+  twcc  (un-ln)  + gp4d   → 4-00:00:00,  90G/GPU,  4 CPU/task  [default]
+  nano5 (cbi-lgn)+ normal → 2-00:00:00, 200G/GPU, 12 CPU/GPU   [default]
+  nano4 (25a-lgn)+ normal → 1-00:00:00, 200G/GPU, 13 CPU/GPU   [default]
+  nano4 (25a-lgn)+ dev    → 2:00:00,    200G/GPU, 13 CPU/GPU
+  (other)                 → 00:30:00,    16G/GPU,  4 CPU/task   [fallback]
+
+Log directories (inside TASK_DIR):
+  5_task_logs/   per-task script output
+  6_job_logs/    sbatch job log (%j-%x.log) + worker log (%j-%x-worker.log)
+EOF
+    exit 0
+}
+
+# ========== Argument Parsing ==========
+while [[ $# -gt 0 ]]; do
+    case "$1" in
+        -a|--account)        ACCOUNT="$2";              shift 2 ;;
+        -N|--nodes)          NODES="$2";                shift 2 ;;
+        -n|--ntasks-per-node) NTASKS_PER_NODE="$2";    shift 2 ;;
+        -g|--gpu-per-task)   GPU_PER_TASK="$2";        shift 2 ;;
+        -i|--max-idle)       MAX_IDLE="$2";             shift 2 ;;
+        -p|--partition)      PARTITION="$2";            shift 2 ;;
+        -t|--time)           TIME_OVERRIDE="$2";        shift 2 ;;
+        --mem-per-gpu)       MEM_PER_GPU_OVERRIDE="$2"; shift 2 ;;
+        --cpus-per-task)     CPU_PER_TASK_OVERRIDE="$2"; shift 2 ;;
+        --sb-*)              SBATCH_EXTRA_ARGS+=("--${1#--sb-}=$2"); shift 2 ;;
+        -y|--yes)            YES=1;                     shift ;;
+        --reset-failed)      RESET_FAILED=1;            shift ;;
+        --clean-logs)        CLEAN_LOGS=1;              shift ;;
+        -h|--help)           usage ;;
+        -*) echo "Error: Unknown option: $1"; exit 1 ;;
+        *)  TASK_DIR="$1"; shift ;;
+    esac
+done
+
+if [ -z "$TASK_DIR" ]; then
+    echo "Error: TASK_DIR is required"
+    echo "Usage: $0 [options] TASK_DIR"
+    exit 1
+fi
+TASK_DIR=$(realpath "$TASK_DIR")
+
+# ========== Platform Detection ==========
+HOSTNAME=$(hostname)
+if echo "$HOSTNAME" | grep -q "un-ln"; then
+    PLATFORM=twcc
+    DEFAULT_PARTITION=gp4d
+elif echo "$HOSTNAME" | grep -q "cbi-lgn"; then
+    PLATFORM=nano5
+    DEFAULT_PARTITION=normal
+elif echo "$HOSTNAME" | grep -q "25a-lgn"; then
+    PLATFORM=nano4
+    DEFAULT_PARTITION=normal
+else
+    PLATFORM=generic
+    DEFAULT_PARTITION=normal
+fi
+
+# Apply partition override or default
+[ -z "$PARTITION" ] && PARTITION="$DEFAULT_PARTITION"
+
+# ========== Resources & Defaults (platform + partition) ==========
+if [ "$PLATFORM" = "twcc" ] && [ "$PARTITION" = "gp4d" ]; then
+    TIME="4-00:00:00"
+    MEM_PER_GPU=90
+    CPU_PER_TASK=4
+elif [ "$PLATFORM" = "nano5" ] && [ "$PARTITION" = "normal" ]; then
+    TIME="2-00:00:00"
+    MEM_PER_GPU=200
+    CPU_PER_TASK=$((12 * GPU_PER_TASK))
+elif [ "$PLATFORM" = "nano4" ] && [ "$PARTITION" = "normal" ]; then
+    TIME="1-00:00:00"
+    MEM_PER_GPU=200
+    CPU_PER_TASK=$((13 * GPU_PER_TASK))
+elif [ "$PLATFORM" = "nano4" ] && [ "$PARTITION" = "dev" ]; then
+    TIME="2:00:00"
+    MEM_PER_GPU=200
+    CPU_PER_TASK=$((13 * GPU_PER_TASK))
+else
+    TIME="00:30:00"
+    MEM_PER_GPU=16
+    CPU_PER_TASK=4
+fi
+
+# Apply user overrides for time/mem/cpu
+[ -n "$TIME_OVERRIDE" ]         && TIME="$TIME_OVERRIDE"
+[ -n "$MEM_PER_GPU_OVERRIDE" ]  && MEM_PER_GPU="$MEM_PER_GPU_OVERRIDE"
+[ -n "$CPU_PER_TASK_OVERRIDE" ] && CPU_PER_TASK="$CPU_PER_TASK_OVERRIDE"
+
+# ========== Derived Values ==========
+TOTAL_MEM=$((NTASKS_PER_NODE * GPU_PER_TASK * MEM_PER_GPU))
+GPUS_PER_NODE=$((NTASKS_PER_NODE * GPU_PER_TASK))
+
+# ========== Summary ==========
+echo "Platform:        ${PLATFORM}"
+echo "Partition:       ${PARTITION}"
+echo "Account:         ${ACCOUNT:-<not set>}"
+echo "Nodes:           ${NODES}"
+echo "Tasks per node:  ${NTASKS_PER_NODE}"
+echo "GPU per task:    ${GPU_PER_TASK}"
+echo "CPU per task:    ${CPU_PER_TASK}"
+echo "Mem per node:    ${TOTAL_MEM}G"
+echo "Time:            ${TIME}"
+echo "Task dir:        ${TASK_DIR}"
+echo "Max idle:        ${MAX_IDLE}s"
+echo "Reset failed:    $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
+echo "Clean logs:      $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
+echo ""
+
+if [ "$YES" -ne 1 ]; then
+    read -p "Submit? (Y/n) " -r
+    if [[ $REPLY =~ ^[Nn]$ ]]; then
+        exit 0
+    fi
+fi
+
+# ========== Submit ==========
+SBATCH_ARGS=(
+    --partition="${PARTITION}"
+    --nodes="${NODES}"
+    --ntasks-per-node="${NTASKS_PER_NODE}"
+    --gres="gpu:${GPUS_PER_NODE}"
+    --mem="${TOTAL_MEM}G"
+    --cpus-per-task="${CPU_PER_TASK}"
+    --time="${TIME}"
+    --job-name="worker"
+)
+if [ -n "$ACCOUNT" ]; then
+    SBATCH_ARGS+=(--account="${ACCOUNT}")
+fi
+
+# ========== Pre-flight: reset failed & clean logs ==========
+if [ "$RESET_FAILED" -eq 1 ]; then
+    failed_dir="${TASK_DIR}/4_failed"
+    pending_dir="${TASK_DIR}/1_pending"
+    if [ -d "$failed_dir" ] && [ -n "$(ls -A "$failed_dir" 2>/dev/null)" ]; then
+        failed_dir_count=$(ls -A "$failed_dir" | wc -l)
+        echo "Moving $failed_dir_count failed tasks back to pending..."
+        mv "${failed_dir}/"* "${pending_dir}/"
+        echo "Done."
+    fi
+fi
+
+if [ "$CLEAN_LOGS" -eq 1 ]; then
+    echo "Cleaning log directories..."
+    rm -rf "${TASK_DIR}/5_task_logs" "${TASK_DIR}/6_job_logs"
+    echo "Done."
+fi
+
+mkdir -p "${TASK_DIR}/6_job_logs"
+SBATCH_ARGS+=(
+    --output="${TASK_DIR}/6_job_logs/%j-%x.log"
+    --error="${TASK_DIR}/6_job_logs/%j-%x.log"
+)
+
+# Apply user overrides at the very end, overriding existing args
+for extra in "${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"}"; do
+    [ -z "$extra" ] && continue
+    key="${extra%%=*}"
+    NEW_SBATCH_ARGS=()
+    for arg in "${SBATCH_ARGS[@]}"; do
+        if [[ "$arg" != "$key" && "$arg" != "$key="* ]]; then
+            NEW_SBATCH_ARGS+=("$arg")
+        fi
+    done
+    SBATCH_ARGS=("${NEW_SBATCH_ARGS[@]}")
+    SBATCH_ARGS+=("$extra")
+done
+
+export TASK_DIR MAX_IDLE GPU_PER_TASK
+SCRIPT_DIR=$(dirname "$(realpath "$0")")
+set -x
+sbatch "${SBATCH_ARGS[@]}" "${SCRIPT_DIR}/_launch_slurm_workers.sbatch"

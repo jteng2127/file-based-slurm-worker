@@ -1,0 +1,30 @@
+#!/bin/bash
+
+set -e
+
+REPO_DIR=$(dirname "$(realpath "$0")")
+BIN_DIR="${REPO_DIR}/bin"
+EXPORT_LINE="export PATH=\"${BIN_DIR}:\$PATH\""
+
+add_to_file() {
+    local file="$1"
+    if [ ! -f "$file" ]; then
+        return
+    fi
+    if grep -qF "$BIN_DIR" "$file" 2>/dev/null; then
+        echo "Already in ${file}, skipping."
+    else
+        echo "" >> "$file"
+        echo "# slurm-task-worker" >> "$file"
+        echo "$EXPORT_LINE" >> "$file"
+        echo "Added to ${file}."
+    fi
+}
+
+add_to_file "${HOME}/.zshrc"
+add_to_file "${HOME}/.bashrc"
+
+echo ""
+echo "Done. Open a new terminal or run:"
+echo "  source ~/.zshrc   (zsh)"
+echo "  source ~/.bashrc  (bash)"

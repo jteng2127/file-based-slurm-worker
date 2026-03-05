@@ -1,0 +1,135 @@
+#!/bin/bash
+
+{
+    set -u
+
+    # Args
+    TASK_DIR=${1%/}
+    MAX_IDLE=${2:-60}
+
+    # Define directory constants
+    PENDING_DIR=${TASK_DIR}/1_pending
+    RUNNING_DIR=${TASK_DIR}/2_running
+    DONE_DIR=${TASK_DIR}/3_done
+    FAILED_DIR=${TASK_DIR}/4_failed
+    TASK_LOGS_DIR=${TASK_DIR}/5_task_logs
+    WORKER_STATUS_DIR=${TASK_DIR}/7_worker_status
+
+    if [ ! -d "$PENDING_DIR" ]; then
+        echo "Task directory not found: $PENDING_DIR"
+        exit 1
+    fi
+
+    mkdir -p "$RUNNING_DIR" "$DONE_DIR" "$FAILED_DIR" "$TASK_LOGS_DIR" "$WORKER_STATUS_DIR"
+
+    # Determine Worker ID (Slurm or PID)
+    if [ -z "${SLURM_JOB_ID:-}" ] || [ -z "${SLURM_STEP_ID:-}" ]; then
+        echo "Not running in a Slurm job. Using PID as worker ID."
+        WORKER_ID=$$
+    else
+        echo "Running in a Slurm job. Using SLURM_JOB_ID and SLURM_STEP_ID as worker ID."
+        WORKER_ID=${SLURM_JOB_ID}.${SLURM_STEP_ID}
+    fi
+
+    # Helper function for logging
+    log() { echo "$(date '+%Y-%m-%d %H:%M:%S') [Worker ${WORKER_ID}] $1"; }
+
+    # Helper function to update worker status file
+    update_status() { echo "$(date '+%Y-%m-%d %H:%M:%S') $1" > "$WORKER_STATUS_DIR/$WORKER_ID"; }
+
+    # Helper function to recursively kill process tree
+    kill_tree() {
+        local pid=$1
+        for child in $(pgrep -P "$pid" 2>/dev/null); do
+            kill_tree "$child"
+        done
+        kill "$pid" 2>/dev/null
+    }
+
+    # Cleanup function to handle termination signals when the worker is killed
+    trap_cleanup() {
+        log "Shutdown signal received."
+        if [ -n "${SUB_PID:-}" ]; then
+            kill_tree "$SUB_PID"
+            wait "$SUB_PID" 2>/dev/null
+            log "Sub-process $SUB_PID terminated."
+        fi
+        if [ -n "${CURRENT_FILE:-}" ]; then
+            mv "$RUNNING_DIR/$CURRENT_FILE" "$PENDING_DIR/" 2>/dev/null
+            log "Recovered $CURRENT_FILE back to $PENDING_DIR."
+        fi
+        rm -f "$WORKER_STATUS_DIR/$WORKER_ID"
+        exit 0
+    }
+
+    trap trap_cleanup SIGINT SIGTERM
+
+    # Main loop
+    IDLE_COUNT=0
+    JOB_COUNT=0
+    SUB_PID=""
+    CURRENT_FILE=""
+    log "Started worker in $TASK_DIR"
+    update_status "STARTED"
+
+    while [ $IDLE_COUNT -lt $MAX_IDLE ]; do
+        SCRIPT_PATH=$(ls "$PENDING_DIR"/*.sh 2>/dev/null | head -n 1)
+
+        if [ -n "$SCRIPT_PATH" ]; then
+            FILENAME=$(basename "$SCRIPT_PATH")
+            if mv "$PENDING_DIR/$FILENAME" "$RUNNING_DIR/$FILENAME" 2>/dev/null; then
+                IDLE_COUNT=0
+                CURRENT_FILE="$FILENAME"
+                TASK_LOG="$TASK_LOGS_DIR/${FILENAME%.sh}-${WORKER_ID}.${JOB_COUNT}.log"
+                log "Processing: $FILENAME, log: $TASK_LOG"
+                update_status "RUNNING $FILENAME"
+
+                # Execute the task
+                WORKER_JOB_ID="${WORKER_ID}.${JOB_COUNT}" bash "$RUNNING_DIR/$FILENAME" >> "$TASK_LOG" 2>&1 &
+                SUB_PID=$!
+
+                # Wait and monitor for file deletion
+                while kill -0 "$SUB_PID" 2>/dev/null; do
+                    if [ ! -f "$RUNNING_DIR/$FILENAME" ]; then
+                        log "Task file $FILENAME moved out of $RUNNING_DIR. Killing task $SUB_PID."
+                        kill_tree "$SUB_PID"
+                        break
+                    fi
+                    if [ ! -f "$WORKER_STATUS_DIR/$WORKER_ID" ]; then
+                        log "Status file removed. Sending SIGTERM to self."
+                        kill -SIGTERM $$
+                    fi
+                    sleep 10
+                done
+                wait "$SUB_PID" 2>/dev/null
+                EXIT_CODE=$?
+
+                if [ -f "$RUNNING_DIR/$FILENAME" ]; then
+                    if [ $EXIT_CODE -eq 0 ]; then
+                        mv "$RUNNING_DIR/$FILENAME" "$DONE_DIR/"
+                        log "Success: $FILENAME"
+                    else
+                        mv "$RUNNING_DIR/$FILENAME" "$FAILED_DIR/"
+                        log "Failed: $FILENAME (Exit Code: $EXIT_CODE)"
+                    fi
+                else
+                    log "Aborted: $FILENAME (moved out of $RUNNING_DIR)"
+                fi
+                JOB_COUNT=$((JOB_COUNT + 1))
+                CURRENT_FILE=""
+                SUB_PID=""
+            fi
+        else
+            # Increment idle counter and wait
+            if [ ! -f "$WORKER_STATUS_DIR/$WORKER_ID" ]; then
+                log "Status file removed. Sending SIGTERM to self."
+                kill -SIGTERM $$
+            fi
+            update_status "IDLE (${IDLE_COUNT}/${MAX_IDLE})"
+            ((IDLE_COUNT+=10))
+            sleep 10
+        fi
+    done
+
+    log "Idle timeout. Exiting."
+}
