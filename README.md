@@ -129,8 +129,6 @@ Platform presets (auto-detected from hostname):
 | nano4 (dev)     | `25a-lgn*`       | dev       | 02:00:00   | 200 GB  | 13×GPU   |
 | (other/generic) | —                | normal    | 00:30:00   | 16 GB   | 4        |
 
-Any platform value can be overridden with `-t`, `--mem-per-gpu`, or `--cpus-per-task`.
-
 The script automatically cancels the Slurm job once all workers finish or go idle.
 
 ### `launch-worker TASK_DIR [MAX_IDLE]`
@@ -145,5 +143,4 @@ Arguments:
 
 The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM` gracefully: the running task's process tree is killed, and the task file is returned to `1_pending/`.
 
-You can run multiple workers pointing at the same `TASK_DIR` at the same time — from multiple terminals, SSH sessions, etc.
-
+You can run multiple workers pointing at the same `TASK_DIR` at the same time.

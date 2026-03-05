@@ -31,8 +31,8 @@ Options:
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
   --sb-KEY VALUE               Pass --KEY=VALUE to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
-  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before start
-  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before start
+  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting
+  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting
   -h, --help                   Show this help message
 
 Platform + partition combos (TIME/MEM/CPU auto-set per combo):
