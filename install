@@ -15,7 +15,7 @@ add_to_file() {
         echo "Already in ${file}, skipping."
     else
         echo "" >> "$file"
-        echo "# slurm-task-worker" >> "$file"
+        echo "# file-based-slurm-worker" >> "$file"
         echo "$EXPORT_LINE" >> "$file"
         echo "Added to ${file}."
     fi

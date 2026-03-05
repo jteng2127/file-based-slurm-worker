@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-Generate 10 demo task scripts into 1_pending/.
+Generate 10 demo task scripts into 0_gen/.
 
 Usage:
     python gen.py
@@ -53,13 +53,15 @@ def generate_task(out_dir: Path, task_id: int, sleep_seconds: int) -> None:
     filename = f"demo-task-{task_id:02d}.sh"
     content = TEMPLATE.substitute(task_id=task_id, sleep_seconds=sleep_seconds)
     file_path = out_dir / filename
-    file_path.write_text(content)
+    with open(file_path, "w") as f:
+        _ = f.write(content)
     print(f"Generated {file_path}")
 
 
 if __name__ == "__main__":
-    out_dir = Path(__file__).parent / "1_pending"
+    out_dir = Path(__file__).parent / "0_gen"
     for i in range(1, 11):
         generate_task(out_dir, task_id=i, sleep_seconds=i * 5)
     print(f"\n10 task scripts written to {out_dir}")
-    print("Run 'launch-worker .' from this directory to start processing them.")
+    print("Copy them to 1_pending/ and run 'launch-worker .' to start processing them.")
+
