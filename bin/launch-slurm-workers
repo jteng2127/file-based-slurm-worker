@@ -13,6 +13,7 @@ TASK_DIR=""
 YES=0
 RESET_FAILED=0
 CLEAN_LOGS=0
+TASK_ESTIMATE_SECOND=0
 
 SBATCH_EXTRA_ARGS=()
 
@@ -29,6 +30,7 @@ Options:
   -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N         GPUs per task/worker (default: 1)
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
+  --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
   --sb-KEY VALUE               Pass --KEY=VALUE to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
   --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting
@@ -52,18 +54,19 @@ EOF
 # ========== Argument Parsing ==========
 while [[ $# -gt 0 ]]; do
     case "$1" in
-        -a|--account)        ACCOUNT="$2";              shift 2 ;;
-        -N|--nodes)          NODES="$2";                shift 2 ;;
-        -n|--ntasks-per-node) NTASKS_PER_NODE="$2";    shift 2 ;;
-        -g|--gpu-per-task)   GPU_PER_TASK="$2";        shift 2 ;;
-        -i|--max-idle)       MAX_IDLE="$2";             shift 2 ;;
-        --sb-*)              SBATCH_EXTRA_ARGS+=("--${1#--sb-}=$2"); shift 2 ;;
-        -y|--yes)            YES=1;                     shift ;;
-        --reset-failed)      RESET_FAILED=1;            shift ;;
-        --clean-logs)        CLEAN_LOGS=1;              shift ;;
-        -h|--help)           usage ;;
-        -*) echo "Error: Unknown option: $1"; exit 1 ;;
-        *)  TASK_DIR="$1"; shift ;;
+        -a|--account)           ACCOUNT="$2";              shift 2 ;;
+        -N|--nodes)             NODES="$2";                shift 2 ;;
+        -n|--ntasks-per-node)   NTASKS_PER_NODE="$2";    shift 2 ;;
+        -g|--gpu-per-task)      GPU_PER_TASK="$2";        shift 2 ;;
+        -i|--max-idle)          MAX_IDLE="$2";             shift 2 ;;
+        --task-estimate-second) TASK_ESTIMATE_SECOND="$2"; shift 2 ;;
+        --sb-*)                 SBATCH_EXTRA_ARGS+=("--${1#--sb-}=$2"); shift 2 ;;
+        -y|--yes)               YES=1;                     shift ;;
+        --reset-failed)         RESET_FAILED=1;            shift ;;
+        --clean-logs)           CLEAN_LOGS=1;              shift ;;
+        -h|--help)              usage ;;
+        -*)                     echo "Error: Unknown option: $1"; exit 1 ;;
+        *)                      TASK_DIR="$1"; shift ;;
     esac
 done
 
@@ -155,16 +158,56 @@ for extra in "${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"}"; do
     SBATCH_ARGS+=("$extra")
 done
 
+# ========== Calculate accept task time limit ==========
+parse_slurm_time() {
+    local t=$1
+    local d=0 h=0 m=0 s=0
+    if [[ "$t" == *-* ]]; then
+        d=${t%%-*}
+        t=${t#*-}
+    fi
+    local count_colons=$(echo "$t" | tr -cd ':' | wc -c)
+    if [ "$count_colons" -eq 2 ]; then
+        h=$(echo "$t" | cut -d: -f1)
+        m=$(echo "$t" | cut -d: -f2)
+        s=$(echo "$t" | cut -d: -f3)
+    elif [ "$count_colons" -eq 1 ]; then
+        m=$(echo "$t" | cut -d: -f1)
+        s=$(echo "$t" | cut -d: -f2)
+    else
+        m=$t
+    fi
+    echo $(( 10#${d:-0} * 86400 + 10#${h:-0} * 3600 + 10#${m:-0} * 60 + 10#${s:-0} ))
+}
+
+FINAL_TIME="$TIME"
+for extra in "${SBATCH_EXTRA_ARGS[@]+"${SBATCH_EXTRA_ARGS[@]}"}"; do
+    key="${extra%%=*}"
+    if [ "$key" == "--time" ]; then
+        FINAL_TIME="${extra#*=}"
+    fi
+done
+
+if [ "$TASK_ESTIMATE_SECOND" -gt 0 ]; then
+    FINAL_TIME_SEC=$(parse_slurm_time "$FINAL_TIME")
+    ACCEPT_TASK_TIME_SECOND_LIMIT=$(( FINAL_TIME_SEC - TASK_ESTIMATE_SECOND ))
+else
+    ACCEPT_TASK_TIME_SECOND_LIMIT=0
+fi
+
+
 # ========== Summary ==========
-echo "Task dir:        ${TASK_DIR}"
-echo "Platform:        ${PLATFORM}"
-echo "Account:         ${ACCOUNT:-<not set>}"
-echo "Nodes:           ${NODES}"
-echo "Tasks per node:  ${NTASKS_PER_NODE}"
-echo "GPU per task:    ${GPU_PER_TASK}"
-echo "Max idle:        ${MAX_IDLE}s"
-echo "Reset failed:    $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
-echo "Clean logs:      $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
+echo "Task dir:          ${TASK_DIR}"
+echo "Platform:          ${PLATFORM}"
+echo "Account:           ${ACCOUNT:-<not set>}"
+echo "Nodes:             ${NODES}"
+echo "Tasks per node:    ${NTASKS_PER_NODE}"
+echo "GPU per task:      ${GPU_PER_TASK}"
+echo "Max idle:          ${MAX_IDLE}s"
+echo "Task Est Second:   ${TASK_ESTIMATE_SECOND}s"
+echo "Accept task limit: ${ACCEPT_TASK_TIME_SECOND_LIMIT}s"
+echo "Reset failed:      $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
+echo "Clean logs:        $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
 echo "Slurm args:"
 printf '  %s\n' "${SBATCH_ARGS[@]}"
 echo ""
@@ -197,7 +240,7 @@ fi
 mkdir -p "${TASK_DIR}/6_job_logs"
 
 # ========== Submit ==========
-export TASK_DIR MAX_IDLE GPU_PER_TASK
+export TASK_DIR MAX_IDLE GPU_PER_TASK ACCEPT_TASK_TIME_SECOND_LIMIT
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 set -x
 sbatch "${SBATCH_ARGS[@]}" "${SCRIPT_DIR}/_launch_slurm_workers.sbatch"

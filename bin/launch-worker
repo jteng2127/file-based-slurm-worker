@@ -6,6 +6,7 @@
     # Args
     TASK_DIR=${1%/}
     MAX_IDLE=${2:-60}
+    ACCEPT_TASK_TIME_SECOND_LIMIT=${3:-0}
 
     # Define directory constants
     PENDING_DIR=${TASK_DIR}/1_pending
@@ -69,10 +70,20 @@
     JOB_COUNT=0
     SUB_PID=""
     CURRENT_FILE=""
+    WORKER_START_TIME=$(date +%s)
     log "Started worker in $TASK_DIR"
     update_status "STARTED"
 
     while [ $IDLE_COUNT -lt $MAX_IDLE ]; do
+        if [ "$ACCEPT_TASK_TIME_SECOND_LIMIT" -gt 0 ]; then
+            CURRENT_TIME=$(date +%s)
+            ELAPSED_TIME=$(( CURRENT_TIME - WORKER_START_TIME ))
+            if [ "$ELAPSED_TIME" -gt "$ACCEPT_TASK_TIME_SECOND_LIMIT" ]; then
+                log "Time limit reached (Elapsed: ${ELAPSED_TIME}s, Limit: ${ACCEPT_TASK_TIME_SECOND_LIMIT}s). Stopping task acceptance."
+                break
+            fi
+        fi
+
         SCRIPT_PATH=$(ls "$PENDING_DIR"/*.sh 2>/dev/null | head -n 1)
 
         if [ -n "$SCRIPT_PATH" ]; then

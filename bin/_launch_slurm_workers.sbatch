@@ -6,7 +6,7 @@
 set -eu
 
 # ========== Config ==========
-# Env vars provided by launch-slurm-workers: TASK_DIR, MAX_IDLE, GPU_PER_TASK
+# Env vars provided by launch-slurm-workers: TASK_DIR, MAX_IDLE, GPU_PER_TASK, ACCEPT_TASK_TIME_SECOND_LIMIT
 
 SRUN_MEM=$(($SLURM_MEM_PER_NODE / $SLURM_NTASKS_PER_NODE))
 SRUN_CPU=$SLURM_CPUS_PER_TASK
@@ -33,7 +33,7 @@ for task_id in $(seq 0 $((TOTAL_WORKERS - 1))); do
         --cpus-per-task=${SRUN_CPU} \
         --output=${TASK_DIR}/6_job_logs/%j-%x-worker.log \
         --error=${TASK_DIR}/6_job_logs/%j-%x-worker.log \
-        bash "${WORKER_BIN}" "${TASK_DIR}" "${MAX_IDLE}" &
+        bash "${WORKER_BIN}" "${TASK_DIR}" "${MAX_IDLE}" "${ACCEPT_TASK_TIME_SECOND_LIMIT:-0}" &
     { set +x; } 2>/dev/null
 done
 
