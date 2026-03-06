@@ -121,7 +121,7 @@ TOTAL_MEM=$((NTASKS_PER_NODE * GPU_PER_TASK * MEM_PER_GPU))
 GPUS_PER_NODE=$((NTASKS_PER_NODE * GPU_PER_TASK))
 
 
-# ========== Submit ==========
+# ========== Create sbatch args ==========
 SBATCH_ARGS=(
     --partition="${PARTITION}"
     --nodes="${NODES}"
@@ -136,25 +136,6 @@ if [ -n "$ACCOUNT" ]; then
     SBATCH_ARGS+=(--account="${ACCOUNT}")
 fi
 
-# ========== Pre-flight: reset failed & clean logs ==========
-if [ "$RESET_FAILED" -eq 1 ]; then
-    failed_dir="${TASK_DIR}/4_failed"
-    pending_dir="${TASK_DIR}/1_pending"
-    if [ -d "$failed_dir" ] && [ -n "$(ls -A "$failed_dir" 2>/dev/null)" ]; then
-        failed_dir_count=$(ls -A "$failed_dir" | wc -l)
-        echo "Moving $failed_dir_count failed tasks back to pending..."
-        mv "${failed_dir}/"* "${pending_dir}/"
-        echo "Done."
-    fi
-fi
-
-if [ "$CLEAN_LOGS" -eq 1 ]; then
-    echo "Cleaning log directories..."
-    rm -rf "${TASK_DIR}/5_task_logs" "${TASK_DIR}/6_job_logs"
-    echo "Done."
-fi
-
-mkdir -p "${TASK_DIR}/6_job_logs"
 SBATCH_ARGS+=(
     --output="${TASK_DIR}/6_job_logs/%j-%x.log"
     --error="${TASK_DIR}/6_job_logs/%j-%x.log"
@@ -195,6 +176,27 @@ if [ "$YES" -ne 1 ]; then
     fi
 fi
 
+# ========== Pre-flight: reset failed & clean logs ==========
+if [ "$RESET_FAILED" -eq 1 ]; then
+    failed_dir="${TASK_DIR}/4_failed"
+    pending_dir="${TASK_DIR}/1_pending"
+    if [ -d "$failed_dir" ] && [ -n "$(ls -A "$failed_dir" 2>/dev/null)" ]; then
+        failed_dir_count=$(ls -A "$failed_dir" | wc -l)
+        echo "Moving $failed_dir_count failed tasks back to pending..."
+        mv "${failed_dir}/"* "${pending_dir}/"
+        echo "Done."
+    fi
+fi
+
+if [ "$CLEAN_LOGS" -eq 1 ]; then
+    echo "Cleaning log directories..."
+    rm -rf "${TASK_DIR}/5_task_logs" "${TASK_DIR}/6_job_logs"
+    echo "Done."
+fi
+
+mkdir -p "${TASK_DIR}/6_job_logs"
+
+# ========== Submit ==========
 export TASK_DIR MAX_IDLE GPU_PER_TASK
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 set -x
