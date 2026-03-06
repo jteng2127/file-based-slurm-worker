@@ -84,6 +84,25 @@
                 log "Processing: $FILENAME, log: $TASK_LOG"
                 update_status "RUNNING $FILENAME"
 
+                # Log system metrics before executing the task
+                echo "================ System Metrics ================" >> "$TASK_LOG"
+                echo "Hostname: $(hostname)" >> "$TASK_LOG"
+                if command -v nvidia-smi &> /dev/null; then
+                    echo "--- GPU Status ---" >> "$TASK_LOG"
+                    nvidia-smi >> "$TASK_LOG" 2>&1
+                else
+                    echo "GPU: nvidia-smi not found." >> "$TASK_LOG"
+                fi
+                echo "--- CPU/Memory Status ---" >> "$TASK_LOG"
+                top -bn1 -1 | grep "^%Cpu" | sed 's/  *%Cpu/\n%Cpu/g' | awk -F'[: ,]+' '/^%Cpu/ {printf "%s: %s %s, %s %s\n", $1, $2, $3, $4, $5}' >> "$TASK_LOG" 2>&1
+                free -h >> "$TASK_LOG" 2>&1
+                echo "--- Top Processes by Memory ---" >> "$TASK_LOG"
+                ps -eo pcpu,pmem,args --sort=-pmem | head -n 4 >> "$TASK_LOG" 2>&1
+                echo "--- Top Processes by CPU ---" >> "$TASK_LOG"
+                ps -eo pcpu,pmem,args --sort=-pcpu | head -n 4 >> "$TASK_LOG" 2>&1
+                echo "=================================================" >> "$TASK_LOG"
+                echo "" >> "$TASK_LOG"
+
                 # Execute the task
                 WORKER_JOB_ID="${WORKER_ID}.${JOB_COUNT}" bash "$RUNNING_DIR/$FILENAME" >> "$TASK_LOG" 2>&1 &
                 SUB_PID=$!
