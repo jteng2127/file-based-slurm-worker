@@ -40,8 +40,8 @@ Options:
 Platform + partition combos (TIME/MEM/CPU auto-set per combo):
   twcc  (un-ln)  + gp4d   → 4-00:00:00,  90G/GPU,  4 CPU/task  [default]
   nano5 (cbi-lgn)+ normal → 2-00:00:00, 200G/GPU, 12 CPU/GPU   [default]
-  nano4 (25a-lgn)+ normal → 1-00:00:00, 200G/GPU, 13 CPU/GPU   [default]
-  nano4 (25a-lgn)+ dev    → 02:00:00,    200G/GPU, 13 CPU/GPU
+  nano4 (25a-lgn)+ normal → 1-00:00:00, 200G/GPU, 12 CPU/GPU   [default]
+  nano4 (25a-lgn)+ dev    → 02:00:00,   200G/GPU, 12 CPU/GPU
   (other)                 → 00:30:00,    16G/GPU,  4 CPU/task   [fallback]
 
 Log directories (inside TASK_DIR):
@@ -107,11 +107,11 @@ elif [ "$PLATFORM" = "nano5" ] && [ "$PARTITION" = "normal" ]; then
 elif [ "$PLATFORM" = "nano4" ] && [ "$PARTITION" = "normal" ]; then
     TIME="1-00:00:00"
     MEM_PER_GPU=200
-    CPU_PER_TASK=$((13 * GPU_PER_TASK))
+    CPU_PER_TASK=$((12 * GPU_PER_TASK))
 elif [ "$PLATFORM" = "nano4" ] && [ "$PARTITION" = "dev" ]; then
     TIME="2:00:00"
     MEM_PER_GPU=200
-    CPU_PER_TASK=$((13 * GPU_PER_TASK))
+    CPU_PER_TASK=$((12 * GPU_PER_TASK))
 else
     TIME="00:30:00"
     MEM_PER_GPU=16

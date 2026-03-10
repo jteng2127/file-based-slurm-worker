@@ -125,8 +125,8 @@ Platform presets (auto-detected from hostname):
 |-----------------|------------------|-----------|------------|---------|----------|
 | twcc            | `un-ln*`         | gp4d      | 4-00:00:00 | 90 GB   | 4        |
 | nano5           | `cbi-lgn*`       | normal    | 2-00:00:00 | 200 GB  | 12×GPU   |
-| nano4           | `25a-lgn*`       | normal    | 1-00:00:00 | 200 GB  | 13×GPU   |
-| nano4 (dev)     | `25a-lgn*`       | dev       | 02:00:00   | 200 GB  | 13×GPU   |
+| nano4           | `25a-lgn*`       | normal    | 1-00:00:00 | 200 GB  | 12×GPU   |
+| nano4 (dev)     | `25a-lgn*`       | dev       | 02:00:00   | 200 GB  | 12×GPU   |
 | (other/generic) | —                | normal    | 00:30:00   | 16 GB   | 4        |
 
 **Task Time limit**: If `--task-estimate-second` is provided (> 0), workers will stop pulling new tasks from `1_pending/` when the remaining SLURM job time is less than the specified estimate. This prevents tasks from being killed midway due to the Slurm job reaching its maximum `--time` limit.
