@@ -31,7 +31,7 @@ mkdir -p 1_pending/
 cp 0_gen/*.sh 1_pending/
 ```
 
-### 3a. Run 2 workers locally
+### 3a. Run workers locally
 
 Open two terminals, run the following command in each:
 
@@ -43,12 +43,11 @@ launch-worker .
 # worker status files go to 7_worker_status/
 ```
 
-### 3b. Run 2 workers on Slurm
+### 3b. Run workers on Slurm
 
 ```bash
-cd ..
-launch-slurm-workers -n 2 example/
-# submits a Slurm job with 2 parallel workers
+bash launch.sh
+# submits a Slurm job with 4 parallel workers
 # Slurm job and worker logs go to 6_job_logs/
 ```
 
