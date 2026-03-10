@@ -8,7 +8,7 @@ ACCOUNT=""
 NODES=1
 NTASKS_PER_NODE=1
 GPU_PER_TASK=1
-MAX_IDLE=60
+MAX_IDLE=0
 TASK_DIR=""
 YES=0
 RESET_FAILED=0
@@ -29,7 +29,7 @@ Options:
   -N, --nodes N                Number of nodes (default: 1)
   -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N         GPUs per task/worker (default: 1)
-  -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 60)
+  -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 0, 0 means run forever)
   --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
   --sb-KEY VALUE               Pass --KEY=VALUE to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt

@@ -5,7 +5,7 @@
 
     # Args
     TASK_DIR=${1%/}
-    MAX_IDLE=${2:-60}
+    MAX_IDLE=${2:-0}
     ACCEPT_TASK_TIME_SECOND_LIMIT=${3:-0}
 
     # Define directory constants
@@ -50,6 +50,10 @@
     # Cleanup function to handle termination signals when the worker is killed
     trap_cleanup() {
         log "Shutdown signal received."
+        cleanup
+    }
+
+    cleanup() {
         if [ -n "${SUB_PID:-}" ]; then
             kill_tree "$SUB_PID"
             wait "$SUB_PID" 2>/dev/null
@@ -74,7 +78,7 @@
     log "Started worker in $TASK_DIR"
     update_status "STARTED"
 
-    while [ $IDLE_COUNT -lt $MAX_IDLE ]; do
+    while [ "$MAX_IDLE" -eq 0 ] || [ $IDLE_COUNT -lt $MAX_IDLE ]; do
         if [ "$ACCEPT_TASK_TIME_SECOND_LIMIT" -gt 0 ]; then
             CURRENT_TIME=$(date +%s)
             ELAPSED_TIME=$(( CURRENT_TIME - WORKER_START_TIME ))
@@ -162,4 +166,5 @@
     done
 
     log "Idle timeout. Exiting."
+    cleanup
 }
