@@ -114,8 +114,9 @@ Options:
   --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
   --sb-KEY VALUE               Pass --KEY=VALUE directly to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
-  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting
-  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting
+  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting (default: no)
+  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting (default: no)
+  --log-system-metrics          Log system metrics (GPU, CPU, Memory) before each task (default: no)
   -h, --help                   Show this help message
 ```
 
@@ -142,6 +143,7 @@ Arguments:
   TASK_DIR                      Directory containing 1_pending/
   MAX_IDLE                      Seconds to wait with no tasks before exiting (default: 0, 0 means run forever)
   ACCEPT_TASK_TIME_SECOND_LIMIT Limit in seconds after which the worker stops accepting new tasks (default: 0, 0 means no limit)
+  LOG_SYSTEM_METRICS            1 to log system metrics before each task, 0 otherwise (default: 0)
 ```
 
 The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM` gracefully: the running task's process tree is killed, and the task file is returned to `1_pending/`.

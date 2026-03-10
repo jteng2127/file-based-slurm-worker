@@ -14,6 +14,7 @@ YES=0
 RESET_FAILED=0
 CLEAN_LOGS=0
 TASK_ESTIMATE_SECOND=0
+LOG_SYSTEM_METRICS=0
 
 SBATCH_EXTRA_ARGS=()
 
@@ -33,8 +34,9 @@ Options:
   --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
   --sb-KEY VALUE               Pass --KEY=VALUE to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
-  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting
-  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting
+  --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting (default: no)
+  --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting (default: no)
+  --log-system-metrics         Log system metrics (GPU, CPU, Memory) before each task (default: no)
   -h, --help                   Show this help message
 
 Platform + partition combos (TIME/MEM/CPU auto-set per combo):
@@ -64,6 +66,7 @@ while [[ $# -gt 0 ]]; do
         -y|--yes)               YES=1;                     shift ;;
         --reset-failed)         RESET_FAILED=1;            shift ;;
         --clean-logs)           CLEAN_LOGS=1;              shift ;;
+        --log-system-metrics)   LOG_SYSTEM_METRICS=1;      shift ;;
         -h|--help)              usage ;;
         -*)                     echo "Error: Unknown option: $1"; exit 1 ;;
         *)                      TASK_DIR="$1"; shift ;;
@@ -197,17 +200,18 @@ fi
 
 
 # ========== Summary ==========
-echo "Task dir:          ${TASK_DIR}"
-echo "Platform:          ${PLATFORM}"
-echo "Account:           ${ACCOUNT:-<not set>}"
-echo "Nodes:             ${NODES}"
-echo "Tasks per node:    ${NTASKS_PER_NODE}"
-echo "GPU per task:      ${GPU_PER_TASK}"
-echo "Max idle:          ${MAX_IDLE}s"
-echo "Task Est Second:   ${TASK_ESTIMATE_SECOND}s"
-echo "Accept task limit: ${ACCEPT_TASK_TIME_SECOND_LIMIT}s"
-echo "Reset failed:      $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
-echo "Clean logs:        $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
+echo "Task dir:           ${TASK_DIR}"
+echo "Platform:           ${PLATFORM}"
+echo "Account:            ${ACCOUNT:-<not set>}"
+echo "Nodes:              ${NODES}"
+echo "Tasks per node:     ${NTASKS_PER_NODE}"
+echo "GPU per task:       ${GPU_PER_TASK}"
+echo "Max idle:           ${MAX_IDLE}s"
+echo "Task Est Second:    ${TASK_ESTIMATE_SECOND}s"
+echo "Accept task limit:  ${ACCEPT_TASK_TIME_SECOND_LIMIT}s"
+echo "Reset failed:       $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
+echo "Clean logs:         $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
+echo "Log system metrics: $([ "$LOG_SYSTEM_METRICS" -eq 1 ] && echo yes || echo no)"
 echo "Slurm args:"
 printf '  %s\n' "${SBATCH_ARGS[@]}"
 echo ""
@@ -240,7 +244,7 @@ fi
 mkdir -p "${TASK_DIR}/6_job_logs"
 
 # ========== Submit ==========
-export TASK_DIR MAX_IDLE GPU_PER_TASK ACCEPT_TASK_TIME_SECOND_LIMIT
+export TASK_DIR MAX_IDLE GPU_PER_TASK ACCEPT_TASK_TIME_SECOND_LIMIT LOG_SYSTEM_METRICS
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 set -x
 sbatch "${SBATCH_ARGS[@]}" "${SCRIPT_DIR}/_launch_slurm_workers.sbatch"
