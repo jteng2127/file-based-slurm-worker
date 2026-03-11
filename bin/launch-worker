@@ -66,6 +66,7 @@
             log "Recovered $CURRENT_FILE back to $PENDING_DIR."
         fi
         rm -f "$WORKER_STATUS_DIR/$WORKER_ID"
+        log "Exiting."
         exit 0
     }
 
@@ -159,6 +160,8 @@
                             for failed_task in "${FAILED_TASKS[@]}"; do
                                 mv "$FAILED_DIR/$failed_task" "$PENDING_DIR/" 2>/dev/null || true
                             done
+                            CURRENT_FILE=""
+                            SUB_PID=""
                             cleanup
                         fi
                     fi

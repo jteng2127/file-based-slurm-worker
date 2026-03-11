@@ -201,6 +201,20 @@ else
     ACCEPT_TASK_TIME_SECOND_LIMIT=0
 fi
 
+# ========== Transform Args ==========
+# Convert --key=value into two separate arguments "--key" "value"
+# This is necessary because short arguments like "-p=dev" are invalid in sbatch; they must be "-p dev"
+NEW_SBATCH_ARGS=()
+for arg in "${SBATCH_ARGS[@]}"; do
+    if [[ "$arg" == *"="* ]]; then
+        key="${arg%%=*}"
+        val="${arg#*=}"
+        NEW_SBATCH_ARGS+=("$key" "$val")
+    else
+        NEW_SBATCH_ARGS+=("$arg")
+    fi
+done
+SBATCH_ARGS=("${NEW_SBATCH_ARGS[@]}")
 
 # ========== Summary ==========
 echo "Task dir:           ${TASK_DIR}"
@@ -216,8 +230,15 @@ echo "Accept task limit:  ${ACCEPT_TASK_TIME_SECOND_LIMIT}s"
 echo "Reset failed:       $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
 echo "Clean logs:         $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"
 echo "Log system metrics: $([ "$LOG_SYSTEM_METRICS" -eq 1 ] && echo yes || echo no)"
-echo "Slurm args:"
-printf '  %s\n' "${SBATCH_ARGS[@]}"
+echo -n "Slurm args:"
+for arg in "${SBATCH_ARGS[@]}"; do
+    if [[ "$arg" == -* ]]; then
+        printf '\n  %s' "$arg"
+    else
+        printf ' %s' "$arg"
+    fi
+done
+echo ""
 echo ""
 
 if [ "$YES" -ne 1 ]; then
