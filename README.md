@@ -96,6 +96,7 @@ launch-slurm-workers -N 2 -n 4 -g 1 task-dir/
 - Stop all workers gracefully for a job: `scancel <JOB_ID>`
 - Stop a specific worker gracefully: `rm task-dir/7_worker_status/<WORKER_ID>`
 - Stop a task by removing it from `2_running/`
+- Workers can auto-terminate if they fail too many consecutive tasks. Enable this with `launch-slurm-workers --max-consecutive-fails MAX`.
 - Move failed tasks back to pending: `launch-slurm-workers --reset-failed TASK_DIR` or manually `mv task-dir/4_failed/*.sh task-dir/1_pending/`
 
 ## Commands
@@ -111,6 +112,7 @@ Options:
   -n, --ntasks-per-node N      Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N         GPUs per task/worker (default: 1)
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 0, 0 means run forever)
+  -f, --max-consecutive-fails MAX Max consecutive task failures before worker auto-terminates (default: 0, disabled)
   --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
   --sb-KEY VALUE               Pass --KEY=VALUE directly to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
   -y, --yes                    Skip confirmation prompt
@@ -134,7 +136,7 @@ Platform presets (auto-detected from hostname):
 
 The script automatically cancels the Slurm job once all workers finish or go idle.
 
-### `launch-worker TASK_DIR [MAX_IDLE] [ACCEPT_TASK_TIME_SECOND_LIMIT]`
+### `launch-worker TASK_DIR [MAX_IDLE] [ACCEPT_TASK_TIME_SECOND_LIMIT] [LOG_SYSTEM_METRICS] [MAX_CONSECUTIVE_FAILS]`
 
 Start a single worker process that consumes tasks from `TASK_DIR/1_pending/`.
 
@@ -144,6 +146,7 @@ Arguments:
   MAX_IDLE                      Seconds to wait with no tasks before exiting (default: 0, 0 means run forever)
   ACCEPT_TASK_TIME_SECOND_LIMIT Limit in seconds after which the worker stops accepting new tasks (default: 0, 0 means no limit)
   LOG_SYSTEM_METRICS            1 to log system metrics before each task, 0 otherwise (default: 0)
+  MAX_CONSECUTIVE_FAILS         Max consecutive task failures before worker auto-terminates (default: 0, disabled)
 ```
 
 The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM` gracefully: the running task's process tree is killed, and the task file is returned to `1_pending/`.

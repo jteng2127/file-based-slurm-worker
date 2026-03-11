@@ -16,7 +16,7 @@ SCRIPT_PATH="$(scontrol show job "$SLURM_JOB_ID" | awk -F= '/Command=/{print $2}
 SCRIPT_DIR=$(dirname "${SCRIPT_PATH}")
 WORKER_BIN="${SCRIPT_DIR}/launch-worker"
 
-echo "$(date '+%Y-%m-%d %H:%M:%S') Task dir: ${TASK_DIR}  Max idle: ${MAX_IDLE}s  GPU per task: ${GPU_PER_TASK}  Log system metrics: ${LOG_SYSTEM_METRICS:-0}"
+echo "$(date '+%Y-%m-%d %H:%M:%S') Task dir: ${TASK_DIR}  Max idle: ${MAX_IDLE}s  GPU per task: ${GPU_PER_TASK}  Log system metrics: ${LOG_SYSTEM_METRICS:-0}  Max fails: ${MAX_CONSECUTIVE_FAILS:-0}"
 
 # ========== (DO NOT MODIFY) Main job ==========
 SECONDS=0
@@ -32,7 +32,7 @@ for task_id in $(seq 0 $((TOTAL_WORKERS - 1))); do
         --cpus-per-task=${SRUN_CPU} \
         --output=${TASK_DIR}/6_job_logs/%j-%x-worker.log \
         --error=${TASK_DIR}/6_job_logs/%j-%x-worker.log \
-        bash "${WORKER_BIN}" "${TASK_DIR}" "${MAX_IDLE}" "${ACCEPT_TASK_TIME_SECOND_LIMIT:-0}" "${LOG_SYSTEM_METRICS:-0}" &
+        bash "${WORKER_BIN}" "${TASK_DIR}" "${MAX_IDLE}" "${ACCEPT_TASK_TIME_SECOND_LIMIT:-0}" "${LOG_SYSTEM_METRICS:-0}" "${MAX_CONSECUTIVE_FAILS:-0}" &
     { set +x; } 2>/dev/null
 done
 
