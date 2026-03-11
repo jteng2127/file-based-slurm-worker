@@ -8,14 +8,14 @@ ACCOUNT=""
 NODES=1
 NTASKS_PER_NODE=1
 GPU_PER_TASK=1
-MAX_IDLE=0
+MAX_IDLE=-1
 TASK_DIR=""
 YES=0
 RESET_FAILED=0
 CLEAN_LOGS=0
-TASK_ESTIMATE_SECOND=0
+TASK_ESTIMATE_SECOND=-1
 LOG_SYSTEM_METRICS=0
-MAX_CONSECUTIVE_FAILS=0
+MAX_CONSECUTIVE_FAILS=-1
 
 SBATCH_EXTRA_ARGS=()
 
@@ -31,9 +31,9 @@ Options:
   -N, --nodes N                    Number of nodes (default: 1)
   -n, --ntasks-per-node N          Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N             GPUs per task/worker (default: 1)
-  -i, --max-idle SECONDS           Worker idle timeout in seconds (default: 0, 0 means run forever)
-  -f, --max-consecutive-fails MAX  Max consecutive task failures before worker auto-terminates (default: 0, disabled)
-  --task-estimate-second SEC       Task execution time estimate in seconds (default: 0)
+  -i, --max-idle SECONDS           Worker idle timeout in seconds (default: -1, run forever)
+  -f, --max-consecutive-fails MAX  Max consecutive task failures before worker auto-terminates (default: -1)
+  --task-estimate-second SEC       Task execution time estimate in seconds (default: -1)
   --sb--KEY VALUE                  Pass --KEY=VALUE to sbatch (e.g. --sb--partition dev, --sb--time 1:00:00)
   --sb-K VALUE                     Pass -K=VALUE to sbatch (e.g. --sb-p dev, --sb-t 1:00:00)
   -y, --yes                        Skip confirmation prompt
@@ -209,9 +209,9 @@ echo "Account:            ${ACCOUNT:-<not set>}"
 echo "Nodes:              ${NODES}"
 echo "Tasks per node:     ${NTASKS_PER_NODE}"
 echo "GPU per task:       ${GPU_PER_TASK}"
-echo "Max idle:           ${MAX_IDLE}s"
-echo "Max consec fails:   $([ "$MAX_CONSECUTIVE_FAILS" -gt 0 ] && echo "$MAX_CONSECUTIVE_FAILS" || echo "Disabled")"
-echo "Task Est Second:    ${TASK_ESTIMATE_SECOND}s"
+echo "Max idle:           $([ "$MAX_IDLE" -ge 0 ] && echo "${MAX_IDLE}s" || echo "Forever")"
+echo "Max consec fails:   $([ "$MAX_CONSECUTIVE_FAILS" -ge 0 ] && echo "$MAX_CONSECUTIVE_FAILS" || echo "Disabled")"
+echo "Task Est Second:    $([ "$TASK_ESTIMATE_SECOND" -ge 0 ] && echo "${TASK_ESTIMATE_SECOND}s" || echo "Disabled")"
 echo "Accept task limit:  ${ACCEPT_TASK_TIME_SECOND_LIMIT}s"
 echo "Reset failed:       $([ "$RESET_FAILED" -eq 1 ] && echo yes || echo no)"
 echo "Clean logs:         $([ "$CLEAN_LOGS" -eq 1 ] && echo yes || echo no)"

@@ -5,10 +5,10 @@
 
     # Args
     TASK_DIR=${1%/}
-    MAX_IDLE=${2:-0}
-    ACCEPT_TASK_TIME_SECOND_LIMIT=${3:-0}
+    MAX_IDLE=${2:--1}
+    ACCEPT_TASK_TIME_SECOND_LIMIT=${3:--1}
     LOG_SYSTEM_METRICS=${4:-0}
-    MAX_CONSECUTIVE_FAILS=${5:-0}
+    MAX_CONSECUTIVE_FAILS=${5:--1}
 
     # Define directory constants
     PENDING_DIR=${TASK_DIR}/1_pending
@@ -81,7 +81,7 @@
     log "Started worker in $TASK_DIR"
     update_status "STARTED"
 
-    while [ "$MAX_IDLE" -eq 0 ] || [ $IDLE_COUNT -lt $MAX_IDLE ]; do
+    while [ "$MAX_IDLE" -lt 0 ] || [ $IDLE_COUNT -lt $MAX_IDLE ]; do
         if [ "$ACCEPT_TASK_TIME_SECOND_LIMIT" -gt 0 ]; then
             CURRENT_TIME=$(date +%s)
             ELAPSED_TIME=$(( CURRENT_TIME - WORKER_START_TIME ))
@@ -175,7 +175,11 @@
                 log "Status file removed. Sending SIGTERM to self."
                 kill -SIGTERM $$
             fi
-            update_status "IDLE (${IDLE_COUNT}/${MAX_IDLE})"
+            if [ "$MAX_IDLE" -lt 0 ]; then
+                update_status "IDLE (Forever)"
+            else
+                update_status "IDLE (${IDLE_COUNT}/${MAX_IDLE})"
+            fi
             ((IDLE_COUNT+=10))
             sleep 10
         fi

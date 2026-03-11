@@ -111,9 +111,9 @@ Options:
   -N, --nodes N                    Number of nodes (default: 1)
   -n, --ntasks-per-node N          Tasks (workers) per node (default: 1)
   -g, --gpu-per-task N             GPUs per task/worker (default: 1)
-  -i, --max-idle SECONDS           Worker idle timeout in seconds (default: 0, 0 means run forever)
-  -f, --max-consecutive-fails MAX  Max consecutive task failures before worker auto-terminates (default: 0, disabled)
-  --task-estimate-second SEC       Task execution time estimate in seconds (default: 0)
+  -i, --max-idle SECONDS           Worker idle timeout in seconds (default: -1, run forever)
+  -f, --max-consecutive-fails MAX  Max consecutive task failures before worker auto-terminates (default: -1)
+  --task-estimate-second SEC       Task execution time estimate in seconds (default: -1)
   --sb--KEY VALUE                  Pass --KEY=VALUE directly to sbatch (e.g. --sb--partition dev, --sb--time 1:00:00)
   --sb-K VALUE                     Pass -K=VALUE directly to sbatch (e.g. --sb-p dev, --sb-t 1:00:00)
   -y, --yes                        Skip confirmation prompt
@@ -144,10 +144,10 @@ Start a single worker process that consumes tasks from `TASK_DIR/1_pending/`.
 ```
 Arguments:
   TASK_DIR                      Directory containing 1_pending/
-  MAX_IDLE                      Seconds to wait with no tasks before exiting (default: 0, 0 means run forever)
-  ACCEPT_TASK_TIME_SECOND_LIMIT Limit in seconds after which the worker stops accepting new tasks (default: 0, 0 means no limit)
+  MAX_IDLE                      Seconds to wait with no tasks before exiting (default: -1, run forever)
+  ACCEPT_TASK_TIME_SECOND_LIMIT Limit in seconds after which the worker stops accepting new tasks (default: -1, no limit)
   LOG_SYSTEM_METRICS            1 to log system metrics before each task, 0 otherwise (default: 0)
-  MAX_CONSECUTIVE_FAILS         Max consecutive task failures before worker auto-terminates (default: 0, disabled)
+  MAX_CONSECUTIVE_FAILS         Max consecutive task failures before worker auto-terminates (default: -1)
 ```
 
 The worker exits after being idle for `MAX_IDLE` seconds. It handles `SIGINT` and `SIGTERM` gracefully: the running task's process tree is killed, and the task file is returned to `1_pending/`.
