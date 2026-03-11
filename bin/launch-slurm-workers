@@ -82,13 +82,13 @@ TASK_DIR=$(realpath "$TASK_DIR")
 
 # ========== Platform Detection ==========
 HOSTNAME=$(hostname)
-if echo "$HOSTNAME" | grep -q "un-ln"; then
+if echo "$HOSTNAME" | grep -q "un-"; then
     PLATFORM=twcc
     DEFAULT_PARTITION=gp4d
-elif echo "$HOSTNAME" | grep -q "cbi-lgn"; then
+elif echo "$HOSTNAME" | grep -q "cbi-"; then
     PLATFORM=nano5
     DEFAULT_PARTITION=normal
-elif echo "$HOSTNAME" | grep -q "25a-lgn"; then
+elif echo "$HOSTNAME" | grep -q "25a-"; then
     PLATFORM=nano4
     DEFAULT_PARTITION=normal
 else
