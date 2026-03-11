@@ -52,7 +52,7 @@ Log directories (inside TASK_DIR):
   5_task_logs/   per-task script output
   6_job_logs/    sbatch job log (%j-%x.log) + worker log (%j-%x-worker.log)
 EOF
-    exit 0
+    exit "${1:-0}"
 }
 
 # ========== Argument Parsing ==========
@@ -71,15 +71,14 @@ while [[ $# -gt 0 ]]; do
         --clean-logs)           CLEAN_LOGS=1;              shift ;;
         --log-system-metrics)   LOG_SYSTEM_METRICS=1;      shift ;;
         -h|--help)              usage ;;
-        -*)                     echo "Error: Unknown option: $1"; exit 1 ;;
+        -*)                     echo "Error: Unknown option: $1" >&2; usage 1 ;;
         *)                      TASK_DIR="$1"; shift ;;
     esac
 done
 
 if [ -z "$TASK_DIR" ]; then
-    echo "Error: TASK_DIR is required"
-    echo "Usage: $0 [options] TASK_DIR"
-    exit 1
+    echo "Error: TASK_DIR is required" >&2
+    usage 1
 fi
 TASK_DIR=$(realpath "$TASK_DIR")
 
