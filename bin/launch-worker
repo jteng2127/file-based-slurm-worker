@@ -116,6 +116,7 @@
                     echo "--- CPU/Memory Status ---" >> "$TASK_LOG"
                     top -bn1 -1 | grep "^%Cpu" | sed 's/  *%Cpu/\n%Cpu/g' | awk -F'[: ,]+' '/^%Cpu/ {printf "%s: %s %s, %s %s\n", $1, $2, $3, $4, $5}' >> "$TASK_LOG" 2>&1
                     free -h >> "$TASK_LOG" 2>&1
+                    cat /proc/meminfo | grep -E '(Commit|Mem)' >> "$TASK_LOG" 2>&1
                     echo "--- Top Processes by Memory ---" >> "$TASK_LOG"
                     ps -eo pcpu,pmem,args --sort=-pmem | head -n 4 >> "$TASK_LOG" 2>&1
                     echo "--- Top Processes by CPU ---" >> "$TASK_LOG"

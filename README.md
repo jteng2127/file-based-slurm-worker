@@ -70,7 +70,7 @@ Multiple workers poll `1_pending/` concurrently. A task file is claimed by `mv` 
 
 If a worker is terminated (recieved SIGTERM or SIGINT) while running a task, the task file is moved back to `1_pending/` automatically, so it will be retried by any remaining worker.
 
-## How to use
+## General Usage
 
 ### 1. Prepare task scripts
 
@@ -99,7 +99,42 @@ launch-slurm-workers -N 2 -n 4 -g 1 task-dir/
 - Workers can auto-terminate if they fail too many consecutive tasks. Enable this with `launch-slurm-workers --max-consecutive-fails MAX`.
 - Move failed tasks back to pending: `launch-slurm-workers --reset-failed TASK_DIR` or manually `mv task-dir/4_failed/*.sh task-dir/1_pending/`
 
-## Commands
+## How to ...
+
+### I don't want to confirm submition when running `launch-slurm-workers`
+
+Use `-y` or `--yes` to skip confirmation prompt.
+
+### How to automatically move failed tasks back to pending / clean up logs before submitting?
+
+Use `--reset-failed` and `--clean-logs` to automatically move failed tasks back to pending / clean up logs before submitting sbatch.
+
+Although I don't recommend cleaning up logs automatically, as it may be useful for debugging.
+
+### How to pass/override sbatch args?
+
+Use `--sb--long-arg <value>` or `--sb-s <value>` for short args. You can check if the overrides are correct when confirming submition.
+
+### If the Slurm job is almost reaching the time limit, how to make the worker stop accepting new tasks?
+
+Use `--task-estimate-second <value>` to set the estimated time of each task. Then the worker will stop accepting new tasks when the remaining slurm time is less than the estimated time. It will still continue running the task it already started.
+
+### How to log system metrics and top process (CPU, Memory) before task start? I suspect someone is using my resources.
+
+Use `--log-system-metrics` so that the worker will log GPU, CPU, Memory, Virtual memory, Top processes by CPU, and Top processes by memory before every task.
+
+### How to prevent broken worker (e.g. node lack of virtual memory, node GPU or CUDA broken) from keep failing all my tasks?
+
+Use `--max-consecutive-fails 3`, then the worker will: 
+
+- stop after 3 consecutive failures (highly likely the problem is coming from worker)
+- automatically put the failed tasks back to `1_pending/`
+
+### I want my worker timeout after idle for X seconds
+
+Use `-i X` or `--max-idle X` with `launch-slurm-workers`.
+
+## Command Reference
 
 ### `launch-slurm-workers [options] TASK_DIR`
 
