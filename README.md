@@ -114,7 +114,8 @@ Options:
   -i, --max-idle SECONDS       Worker idle timeout in seconds (default: 0, 0 means run forever)
   -f, --max-consecutive-fails MAX Max consecutive task failures before worker auto-terminates (default: 0, disabled)
   --task-estimate-second SEC   Task execution time estimate in seconds (default: 0)
-  --sb-KEY VALUE               Pass --KEY=VALUE directly to sbatch (e.g. --sb-partition dev, --sb-time 1:00:00)
+  --sb--KEY VALUE              Pass --KEY=VALUE directly to sbatch (e.g. --sb--partition dev, --sb--time 1:00:00)
+  --sb-K VALUE                 Pass -K=VALUE directly to sbatch (e.g. --sb-p dev, --sb-t 1:00:00)
   -y, --yes                    Skip confirmation prompt
   --reset-failed               Move 4_failed/ tasks back to 1_pending/ before submitting (default: no)
   --clean-logs                 Delete 5_task_logs/ and 6_job_logs/ before submitting (default: no)
