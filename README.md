@@ -105,11 +105,13 @@ launch-slurm-workers -N 2 -n 4 -g 1 task-dir/
 
 Use `-y` or `--yes` to skip confirmation prompt.
 
-### How to automatically move failed tasks back to pending / clean up logs before submitting?
+### How to automatically move failed tasks back to pending / clean up logs?
 
 Use `--reset-failed` and `--clean-logs` to automatically move failed tasks back to pending / clean up logs before submitting sbatch.
 
-Although I don't recommend cleaning up logs automatically, as it may be useful for debugging.
+`--reset-failed` also instructs each worker to put any newly failed tasks back to `1_pending/` immediately (instead of `4_failed/`), so failed tasks are continuously retried by any available worker for the duration of the job.
+
+I don't recommend cleaning up logs automatically, as it may be useful for debugging.
 
 ### How to pass/override sbatch args?
 
@@ -152,7 +154,8 @@ Options:
   --sb--KEY VALUE                  Pass --KEY=VALUE directly to sbatch (e.g. --sb--partition dev, --sb--time 1:00:00)
   --sb-K VALUE                     Pass -K=VALUE directly to sbatch (e.g. --sb-p dev, --sb-t 1:00:00)
   -y, --yes                        Skip confirmation prompt
-  --reset-failed                   Move 4_failed/ tasks back to 1_pending/ before submitting (default: no)
+  --reset-failed                   Move 4_failed/ tasks back to 1_pending/ before submitting, and have workers
+                                   continuously put any newly failed tasks back to 1_pending/ (default: no)
   --clean-logs                     Delete 5_task_logs/ and 6_job_logs/ before submitting (default: no)
   --log-system-metrics             Log system metrics (GPU, CPU, Memory) before each task (default: no)
   -h, --help                       Show this help message

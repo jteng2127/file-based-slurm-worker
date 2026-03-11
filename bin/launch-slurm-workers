@@ -37,7 +37,7 @@ Options:
   --sb--KEY VALUE                  Pass --KEY=VALUE to sbatch (e.g. --sb--partition dev, --sb--time 1:00:00)
   --sb-K VALUE                     Pass -K=VALUE to sbatch (e.g. --sb-p dev, --sb-t 1:00:00)
   -y, --yes                        Skip confirmation prompt
-  --reset-failed                   Move 4_failed/ tasks back to 1_pending/ before submitting (default: no)
+  --reset-failed                   Move 4_failed/ tasks back to 1_pending/ before submitting, and also have workers continuously put any newly failed tasks back to 1_pending/ (default: no)
   --clean-logs                     Delete 5_task_logs/ and 6_job_logs/ before submitting (default: no)
   --log-system-metrics             Log system metrics (GPU, CPU, Memory) before each task (default: no)
   -h, --help                       Show this help message
@@ -269,7 +269,7 @@ fi
 mkdir -p "${TASK_DIR}/6_job_logs"
 
 # ========== Submit ==========
-export TASK_DIR MAX_IDLE GPU_PER_TASK ACCEPT_TASK_TIME_SECOND_LIMIT LOG_SYSTEM_METRICS MAX_CONSECUTIVE_FAILS
+export TASK_DIR MAX_IDLE GPU_PER_TASK ACCEPT_TASK_TIME_SECOND_LIMIT LOG_SYSTEM_METRICS MAX_CONSECUTIVE_FAILS RESET_FAILED
 SCRIPT_DIR=$(dirname "$(realpath "$0")")
 set -x
 sbatch "${SBATCH_ARGS[@]}" "${SCRIPT_DIR}/_launch_slurm_workers.sbatch"

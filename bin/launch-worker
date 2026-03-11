@@ -9,6 +9,7 @@
     ACCEPT_TASK_TIME_SECOND_LIMIT=${3:--1}
     LOG_SYSTEM_METRICS=${4:-0}
     MAX_CONSECUTIVE_FAILS=${5:--1}
+    RESET_FAILED=${6:-0}
 
     # Define directory constants
     PENDING_DIR=${TASK_DIR}/1_pending
@@ -152,15 +153,23 @@
                         FAILED_TASKS=()
                     else
                         FAILED_TASKS+=("$FILENAME")
-                        mv "$RUNNING_DIR/$FILENAME" "$FAILED_DIR/"
                         log "Failed: $FILENAME (Exit Code: $EXIT_CODE)"
+
+                        if [ "$RESET_FAILED" -eq 1 ]; then
+                            mv "$RUNNING_DIR/$FILENAME" "$PENDING_DIR/"
+                            log "Reset failed task back to pending: $FILENAME"
+                        else
+                            mv "$RUNNING_DIR/$FILENAME" "$FAILED_DIR/"
+                        fi
 
                         if [ "$MAX_CONSECUTIVE_FAILS" -gt 0 ] && [ "${#FAILED_TASKS[@]}" -ge "$MAX_CONSECUTIVE_FAILS" ]; then
                             log "Critical Error: Max consecutive failures ($MAX_CONSECUTIVE_FAILS) reached."
-                            log "Recovering failed tasks to pending: ${FAILED_TASKS[*]}"
-                            for failed_task in "${FAILED_TASKS[@]}"; do
-                                mv "$FAILED_DIR/$failed_task" "$PENDING_DIR/" 2>/dev/null || true
-                            done
+                            if [ "$RESET_FAILED" -ne 1 ]; then
+                                log "Recovering failed tasks to pending: ${FAILED_TASKS[*]}"
+                                for failed_task in "${FAILED_TASKS[@]}"; do
+                                    mv "$FAILED_DIR/$failed_task" "$PENDING_DIR/" 2>/dev/null || true
+                                done
+                            fi
                             CURRENT_FILE=""
                             SUB_PID=""
                             cleanup
