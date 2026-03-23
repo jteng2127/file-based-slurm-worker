@@ -1,0 +1,19 @@
+nano4_H100_failsafe:
+  account: "XXXNNNNNN"
+  sb--partition: "normal"
+  max-consecutive-fails: 3
+  task-estimate-second: 39600 # 11 hours
+  reset-failed: true
+  log-system-metrics: true
+
+nano5_H100:
+  account: "XXXNNNNNN"
+  sb--partition: "normal"
+
+nano5_H200:
+  account: "XXXNNNNNN"
+  sb--partition: "normal2"
+
+twcc_V100:
+  account: "XXXNNNNNN"
+  sb--partition: "gp4d"
