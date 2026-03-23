@@ -10,6 +10,14 @@ A filesystem-based task queue for running many independent jobs across parallel 
 - **Automatic recovery**: If a worker is killed mid-task, the task will automatically retry on another worker.
 - **NCHC-Slurm-ready**: Auto-detects NCHC Slurm clusters (twcc, nano4, nano5) and sets the sbatch arguments for you. How many nodes? How many GPUs per worker? How many workers? That's all you need to provide.
 
+## Skill Installation (for Agents)
+
+If you are using an AI agent (like Claude Code, Antigravity, etc.) with a skills system, you can install the `file-based-slurm-worker` skill into your agent's skills directory:
+
+```bash
+bash install_agent_skill <SKILLS_ROOT>
+```
+
 ## Quick start
 
 ### 1. Install
@@ -161,7 +169,7 @@ Options:
   -h, --help                       Show this help message
 ```
 
-Platform presets (auto-detected from hostname):
+Platform presets in `launch-slurm-workers` (auto-detected from hostname):
 
 | Platform        | Hostname pattern | Partition | Time       | Mem/GPU | CPU/task |
 |-----------------|------------------|-----------|------------|---------|----------|
