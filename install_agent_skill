@@ -1,0 +1,32 @@
+#!/bin/bash
+# install_agent_skill <skills_root>
+# Helps install the file-based-slurm-worker skill into an agent's skills directory.
+
+TARGET_DIR=$1
+
+if [ -z "$TARGET_DIR" ]; then
+    echo "Usage: $0 <skills_root>"
+    echo "Example: $0 ~/.agents/skills/"
+    exit 1
+fi
+
+# Get the absolute path of the repository root
+REPO_ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+SKILL_FOLDER="file-based-slurm-worker"
+SKILL_SRC="$REPO_ROOT/skills/$SKILL_FOLDER"
+
+if [ ! -d "$SKILL_SRC" ]; then
+    echo "Error: Skill source $SKILL_SRC not found."
+    exit 1
+fi
+
+# Create target directory if it doesn't exist
+mkdir -p "$TARGET_DIR"
+
+# Copy the skill directory
+cp -r "$SKILL_SRC" "$TARGET_DIR/"
+
+echo "--------------------------------------------------------"
+echo "Skill '$SKILL_FOLDER' successfully installed to:"
+echo "  $TARGET_DIR/$SKILL_FOLDER"
+echo "--------------------------------------------------------"
